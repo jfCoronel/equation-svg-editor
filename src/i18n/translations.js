@@ -63,6 +63,10 @@ export const translations = {
     svgsFound: (n) => `Se encontraron ${n} SVGs en el documento — selecciona uno:`,
     errorProcessingDoc: (msg) => `Error al procesar el documento: ${msg}`,
     defaultEquationName: 'ecuacion',
+
+    // InstallPrompt
+    installApp: 'Instala MathEditor para usarla sin conexión',
+    install: 'Instalar',
   },
 
   en: {
@@ -129,5 +133,9 @@ export const translations = {
     svgsFound: (n) => `Found ${n} SVGs in the document — select one:`,
     errorProcessingDoc: (msg) => `Error processing the document: ${msg}`,
     defaultEquationName: 'equation',
+
+    // InstallPrompt
+    installApp: 'Install MathEditor for offline use',
+    install: 'Install',
   },
 };

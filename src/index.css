@@ -638,3 +638,41 @@ footer a:hover { text-decoration: underline; }
   line-height: 1.5;
   border: 0.5px solid var(--border);
 }
+
+/* PWA Install Prompt */
+.install-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+}
+
+.install-prompt .ti { font-size: 16px; }
+
+.install-prompt span:nth-child(2) { flex: 1; }
+
+.install-btn {
+  padding: 4px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid rgba(255,255,255,0.6);
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.install-btn:hover { background: rgba(255,255,255,0.15); }
+
+.install-dismiss {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+.install-dismiss:hover { color: #fff; }

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
+import InstallPrompt from './components/InstallPrompt';
 import { LatexInput } from './components/LatexInput';
 import { Preview } from './components/Preview';
 import { DropZone } from './components/DropZone';
@@ -282,6 +283,7 @@ export default function App() {
   return (
     <>
       <Header dark={dark} onToggleDark={toggleDark} />
+      <InstallPrompt />
       <main>
         <div className="panels">
           <LatexInput
