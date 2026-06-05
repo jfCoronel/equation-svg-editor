@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 
-export function DropZone({ onFile }) {
+export function DropZone({ onFiles }) {
   const { t } = useLanguage();
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef(null);
@@ -18,7 +18,7 @@ export function DropZone({ onFile }) {
   function handleDrop(e) {
     e.preventDefault();
     setIsDragOver(false);
-    onFile(e.dataTransfer.files[0]);
+    onFiles(Array.from(e.dataTransfer.files));
   }
 
   function handleClick() {
@@ -32,7 +32,7 @@ export function DropZone({ onFile }) {
   }
 
   function handleFileChange(e) {
-    onFile(e.target.files[0]);
+    onFiles(Array.from(e.target.files));
     e.target.value = '';
   }
 
@@ -56,6 +56,7 @@ export function DropZone({ onFile }) {
         ref={fileInputRef}
         type="file"
         accept=".svg,image/svg+xml,.odt,.odp,.ods,.docx,.pptx,.xlsx"
+        multiple
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />

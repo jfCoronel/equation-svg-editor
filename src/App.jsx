@@ -7,7 +7,7 @@ import { Preview } from './components/Preview';
 import { DropZone } from './components/DropZone';
 import { SvgPicker } from './components/SvgPicker';
 import { EXAMPLES } from './data/examples';
-import { buildExportSvg, applyPtDimensions } from './utils/svgUtils';
+import { buildExportSvg, applyPtDimensions, injectFilenameInSvg } from './utils/svgUtils';
 import { parseSvgForLatex } from './utils/svgLoader';
 import { extractSvgsFromDoc, DOC_EXTENSIONS } from './utils/docUtils';
 import { useMathJax } from './hooks/useMathJax';
@@ -38,11 +38,15 @@ export default function App() {
   const mjReady          = useMathJax();
   const initialised      = useRef(false);
   const fontSizeRef      = useRef(12);
+  const fontRef          = useRef(font);
   const latexInputRef    = useRef('');
   const inputModeRef     = useRef('tex');
   const renderIdRef      = useRef(0);
-  const handleDownloadRef = useRef(null);
-  const isDownloadingRef  = useRef(false);
+  const handleDownloadRef  = useRef(null);
+  const isDownloadingRef   = useRef(false);
+  const loadedFilenameRef  = useRef(null);
+
+  useEffect(() => { fontRef.current = font; }, [font]);
 
   const setStatus = useCallback((message, type = '') => {
     setStatusState({ message, type });
@@ -87,7 +91,7 @@ export default function App() {
       if (!svgEl) throw new Error(t.noSvgGenerated);
 
       setCurrentLatex(trimmed);
-      setCurrentSvgString(buildExportSvg(svgEl, trimmed, pt, inputModeRef.current));
+      setCurrentSvgString(buildExportSvg(svgEl, trimmed, pt, inputModeRef.current, fontRef.current));
 
       const preview = svgEl.cloneNode(true);
       applyPtDimensions(preview, pt);
@@ -112,11 +116,15 @@ export default function App() {
       const saved = localStorage.getItem('mj-restore');
       if (saved) {
         try {
-          const { formula, mode } = JSON.parse(saved);
+          const { formula, mode, fontSize: savedFontSize } = JSON.parse(saved);
           localStorage.removeItem('mj-restore');
           if (mode && mode !== 'tex') {
             inputModeRef.current = mode;
             setInputMode(mode);
+          }
+          if (savedFontSize && savedFontSize > 0) {
+            fontSizeRef.current = savedFontSize;
+            setFontSize(savedFontSize);
           }
           src = formula;
         } catch { /* ignore */ }
@@ -132,6 +140,7 @@ export default function App() {
       localStorage.setItem('mj-restore', JSON.stringify({
         formula: latexInputRef.current,
         mode: inputModeRef.current,
+        fontSize: fontSizeRef.current,
       }));
     }
     localStorage.setItem('mj-font', newFont);
@@ -167,7 +176,7 @@ export default function App() {
       .substring(0, 30)
       .replace(/_+$/g, '') || t.defaultEquationName;
 
-    const suggestedName = `eq_${safeName}.svg`;
+    const suggestedName = loadedFilenameRef.current ?? `eq_${safeName}.svg`;
 
     // showSaveFilePicker shows a native "Save As" dialog on Chrome/Edge.
     // Safari declares the API but doesn't prompt for a filename, so we skip it there.
@@ -180,18 +189,20 @@ export default function App() {
             suggestedName,
             types: [{ description: 'SVG Image', accept: { 'image/svg+xml': ['.svg'] } }],
           });
+          const finalSvg = injectFilenameInSvg(currentSvgString, handle.name);
           try {
             const writable = await handle.createWritable();
-            await writable.write(currentSvgString);
+            await writable.write(finalSvg);
             await writable.close();
           } catch {
-            const blob = new Blob([currentSvgString], { type: 'image/svg+xml' });
+            const blob = new Blob([finalSvg], { type: 'image/svg+xml' });
             const a    = document.createElement('a');
             a.href     = URL.createObjectURL(blob);
             a.download = handle.name;
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 5000);
           }
+          loadedFilenameRef.current = handle.name;
           setStatus(t.downloaded(handle.name), 'ok');
         } catch (e) {
           if (e.name !== 'AbortError') setStatus(e.message, 'err');
@@ -200,12 +211,14 @@ export default function App() {
         const userInput = window.prompt(t.saveAsPrompt, suggestedName);
         if (userInput === null) return;
         const chosen = (userInput.trim() || suggestedName).replace(/\.svg$/i, '') + '.svg';
-        const blob = new Blob([currentSvgString], { type: 'image/svg+xml' });
+        const finalSvg = injectFilenameInSvg(currentSvgString, chosen);
+        const blob = new Blob([finalSvg], { type: 'image/svg+xml' });
         const a    = document.createElement('a');
         a.href     = URL.createObjectURL(blob);
         a.download = chosen;
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        loadedFilenameRef.current = chosen;
         setStatus(t.downloaded(chosen), 'ok');
       }
     } finally {
@@ -229,7 +242,29 @@ export default function App() {
   const loadSvgContent = useCallback((content, name = 'archivo.svg') => {
     const result = parseSvgForLatex(content);
     if (result) {
-      const { formula, mode } = result;
+      const { formula, mode, fontSize: svgFontSize, fontFamily: svgFontFamily, fileName } = result;
+
+      loadedFilenameRef.current = fileName || null;
+
+      // Apply defaults when metadata is absent
+      const targetFontSize   = (svgFontSize   != null && svgFontSize > 0) ? svgFontSize   : 12;
+      const targetFontFamily = svgFontFamily ?? '';
+
+      // If the target font differs from the loaded one, trigger a page reload.
+      // Set refs first so handleFontChange saves the correct restore payload.
+      if (targetFontFamily !== fontRef.current) {
+        latexInputRef.current = formula;
+        inputModeRef.current  = mode;
+        fontSizeRef.current   = targetFontSize;
+        setFontSize(targetFontSize);
+        handleFontChange(targetFontFamily);
+        return;
+      }
+
+      if (targetFontSize !== fontSizeRef.current) {
+        handleFontSizeChange(targetFontSize);
+      }
+
       inputModeRef.current = mode;
       setInputMode(mode);
       latexInputRef.current = formula;
@@ -239,7 +274,7 @@ export default function App() {
     } else {
       setStatus(t.noFormulaMetadata(name), 'err');
     }
-  }, [renderLatex, setStatus, t]);
+  }, [renderLatex, setStatus, t, handleFontChange, handleFontSizeChange]);
 
   const handleLoadFile = useCallback((file) => {
     if (!file) return;
@@ -273,12 +308,58 @@ export default function App() {
     }
   }, [loadSvgContent, setStatus, t]);
 
-  const handleLoadAny = useCallback((file) => {
-    if (!file) return;
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (DOC_EXTENSIONS.includes(ext)) handleLoadDoc(file);
-    else handleLoadFile(file);
-  }, [handleLoadDoc, handleLoadFile]);
+  const handleLoadFiles = useCallback(async (files) => {
+    if (!files || files.length === 0) return;
+
+    // Single file: existing behavior
+    if (files.length === 1) {
+      const file = files[0];
+      const ext  = file.name.split('.').pop().toLowerCase();
+      if (DOC_EXTENSIONS.includes(ext)) handleLoadDoc(file);
+      else handleLoadFile(file);
+      return;
+    }
+
+    // Multiple files: gather equations from every SVG and every document
+    setStatus(t.extractingSvgs, '');
+    setSvgPicker([]);
+
+    const isSvg = f => f.name.toLowerCase().endsWith('.svg') || f.type === 'image/svg+xml';
+    const isDoc = f => DOC_EXTENSIONS.includes(f.name.split('.').pop().toLowerCase());
+
+    try {
+      const groups = await Promise.all(files.map(f => {
+        if (isSvg(f)) {
+          return new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload  = e => {
+              const content = e.target.result;
+              const parsed  = parseSvgForLatex(content);
+              res([{ name: f.name, displayName: parsed?.fileName ?? null, content, latex: parsed?.formula ?? null }]);
+            };
+            reader.onerror = () => rej(new Error(f.name));
+            reader.readAsText(f);
+          });
+        }
+        if (isDoc(f)) return extractSvgsFromDoc(f);
+        return Promise.resolve([]);
+      }));
+
+      const all = groups.flat();
+      all.sort((a, b) => (b.latex ? 1 : 0) - (a.latex ? 1 : 0));
+
+      if (all.length === 0) {
+        setStatus(t.noSvgsFound, 'err');
+      } else if (all.length === 1) {
+        loadSvgContent(all[0].content, all[0].name);
+      } else {
+        setSvgPicker(all);
+        setStatus(t.svgsFound(all.length), '');
+      }
+    } catch (e) {
+      setStatus(t.errorProcessingDoc(e.message), 'err');
+    }
+  }, [handleLoadDoc, handleLoadFile, loadSvgContent, setStatus, t]);
 
   return (
     <>
@@ -288,7 +369,7 @@ export default function App() {
         <div className="panels">
           <LatexInput
             value={latexInput}
-            onChange={v => { latexInputRef.current = v; setLatexInput(v); }}
+            onChange={v => { latexInputRef.current = v; setLatexInput(v); loadedFilenameRef.current = null; }}
             onRender={renderLatex}
             inputMode={inputMode}
             onModeChange={handleModeChange}
@@ -323,7 +404,7 @@ export default function App() {
           />
         )}
 
-        <DropZone onFile={handleLoadAny} />
+        <DropZone onFiles={handleLoadFiles} />
       </main>
       <Footer />
     </>

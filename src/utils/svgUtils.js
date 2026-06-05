@@ -16,16 +16,25 @@ export function unescapeXml(str) {
     .replace(/&apos;/g, "'");
 }
 
-// Encode LaTeX as URL-safe base64 for use in an XML id attribute.
-// XML ids can contain: letters, digits, '-', '_', '.', ':' — standard base64
-// uses '+', '/' and '=' which are not allowed, so we use the URL-safe variant.
+// Encodes all recoverable metadata into a URL-safe base64 id that survives
+// Word/PowerPoint SVG processing (they strip <metadata> but keep root attributes).
+// Format: lxs2-{base64url(JSON)}
+// JSON keys: f=formula, m=mode, s=fontSize, ff=fontFamily, fn=fileName
+function toB64url(str) {
+  const bytes = new TextEncoder().encode(str);
+  const b64   = btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''));
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function encodeMetadataId(formula, mode, fontSize, fontFamily) {
+  const meta = { f: formula, m: mode, s: fontSize };
+  if (fontFamily) meta.ff = fontFamily;
+  return 'lxs2-' + toB64url(JSON.stringify(meta));
+}
+
+// Legacy export kept for external compat — new code uses encodeMetadataId.
 export function encodeLatexId(formula, mode = 'tex') {
-  const bytes  = new TextEncoder().encode(formula);
-  const b64    = btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''));
-  const b64url = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  // prefix encodes mode so it survives Word's metadata stripping:
-  //   lxs-tex-{b64}  →  LaTeX
-  //   lxs-asc-{b64}  →  ASCIIMath
+  const b64url = toB64url(formula);
   return (mode === 'asciimath' ? 'lxs-asc-' : 'lxs-tex-') + b64url;
 }
 
@@ -43,7 +52,7 @@ function applyPtDimensions(svgEl, fontSize) {
   svgEl.setAttribute('height', `${(vbH / 1000 * fontSize).toFixed(3)}pt`);
 }
 
-export function buildExportSvg(svgEl, formula, fontSize = 12, mode = 'tex') {
+export function buildExportSvg(svgEl, formula, fontSize = 12, mode = 'tex', fontFamily = '') {
   const ns    = 'http://www.w3.org/2000/svg';
   const clone = svgEl.cloneNode(true);
 
@@ -51,13 +60,14 @@ export function buildExportSvg(svgEl, formula, fontSize = 12, mode = 'tex') {
 
   clone.setAttribute('xmlns',       ns);
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-  // id encodes the formula in base64url — survives Word's SVG processing
-  clone.setAttribute('id', encodeLatexId(formula, mode));
+  // lxs2- id encodes all metadata in JSON/base64url — survives Word's <metadata> stripping
+  clone.setAttribute('id', encodeMetadataId(formula, mode, fontSize, fontFamily));
 
   // <metadata> for LibreOffice, Inkscape and other SVG-aware tools
+  const fontFamilyAttr = fontFamily ? ` font-family="${escapeXml(fontFamily)}"` : '';
   const meta = document.createElementNS(ns, 'metadata');
   meta.innerHTML =
-    `<latex-source xmlns="https://schemas.latexeditor.app/1.0" mode="${mode}">` +
+    `<latex-source xmlns="https://schemas.latexeditor.app/1.0" mode="${mode}" font-size="${fontSize}"${fontFamilyAttr}>` +
     escapeXml(formula) +
     '</latex-source>';
   clone.insertBefore(meta, clone.firstChild);
@@ -65,6 +75,35 @@ export function buildExportSvg(svgEl, formula, fontSize = 12, mode = 'tex') {
   // Word/PowerPoint don't inherit a CSS color context, so currentColor resolves
   // to white/undefined. Replace it with an explicit black before exporting.
   return new XMLSerializer().serializeToString(clone).replace(/currentColor/g, 'black');
+}
+
+// Injects the final filename into both <latex-source> and the lxs2- id.
+// Called at download time once the user has confirmed the filename.
+export function injectFilenameInSvg(svgString, filename) {
+  const escaped = escapeXml(filename);
+
+  // Update <metadata> attribute (for non-Word tools)
+  const withMeta = svgString.replace(
+    /(<(?:[\w]+:)?latex-source\b[^>]*)>/,
+    (_, open) => `${open} file-name="${escaped}">`
+  );
+
+  // Update lxs2- id attribute (survives Word's <metadata> stripping)
+  return withMeta.replace(
+    /(\bid=")lxs2-([^"]+)(")/,
+    (full, pre, b64url, post) => {
+      try {
+        const b64    = b64url.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64 + '=='.slice(0, (4 - b64.length % 4) % 4);
+        const bytes  = Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+        const meta   = JSON.parse(new TextDecoder().decode(bytes));
+        meta.fn = filename;
+        return `${pre}lxs2-${toB64url(JSON.stringify(meta))}${post}`;
+      } catch {
+        return full;
+      }
+    }
+  );
 }
 
 export { applyPtDimensions };

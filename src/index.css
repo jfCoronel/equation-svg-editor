@@ -584,6 +584,13 @@ footer a:hover { text-decoration: underline; }
   font-family: var(--font-mono);
 }
 
+.svg-picker-source {
+  font-size: 10px;
+  font-weight: 400;
+  font-style: italic;
+  color: #4a90d9;
+}
+
 .svg-picker-latex {
   font-size: 11px;
   color: var(--text-2);

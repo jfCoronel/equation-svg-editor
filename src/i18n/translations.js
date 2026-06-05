@@ -33,6 +33,7 @@ export const translations = {
     close: 'Cerrar',
     noLatexMeta: 'sin metadatos LaTeX',
     viewSvgContent: 'Ver contenido SVG (diagnóstico)',
+    fromSource: 'de',
 
     // DropZone
     dropZoneLabel: 'Arrastra un SVG aquí para recuperar el LaTeX',
@@ -103,6 +104,7 @@ export const translations = {
     close: 'Close',
     noLatexMeta: 'no LaTeX metadata',
     viewSvgContent: 'View SVG content (debug)',
+    fromSource: 'from',
 
     // DropZone
     dropZoneLabel: 'Drag an SVG here to recover the LaTeX',

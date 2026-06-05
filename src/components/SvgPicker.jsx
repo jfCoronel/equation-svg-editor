@@ -18,7 +18,10 @@ function PickerItem({ svg, onSelect }) {
           <img src={uri} alt={svg.latex ?? svg.name} />
         </div>
         <div className="svg-picker-meta">
-          <span className="svg-picker-name">{svg.name}</span>
+          <span className="svg-picker-name">
+            {svg.displayName ?? svg.name}
+            {svg.sourceName && <span className="svg-picker-source"> {t.fromSource} {svg.sourceName}</span>}
+          </span>
           {svg.latex
             ? <span className="svg-picker-latex">{svg.latex.length > 60 ? svg.latex.substring(0, 60) + '…' : svg.latex}</span>
             : <span className="svg-picker-none">{t.noLatexMeta}</span>

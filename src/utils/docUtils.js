@@ -25,7 +25,13 @@ export async function extractSvgsFromDoc(file) {
     if (!entry.dir && filter(path)) {
       const content = await entry.async('string');
       const parsed  = parseSvgForLatex(content);
-      results.push({ name: path.split('/').pop(), content, latex: parsed?.formula ?? null });
+      results.push({
+        name:        path.split('/').pop(),
+        displayName: parsed?.fileName ?? null,
+        sourceName:  file.name,
+        content,
+        latex:       parsed?.formula ?? null,
+      });
     }
   }
 

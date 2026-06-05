@@ -1,29 +1,49 @@
 import { unescapeXml } from './svgUtils';
 
-function decodeLatexId(id) {
-  let encoded, mode;
-  if (id.startsWith('lxs-tex-')) {
-    encoded = id.slice(8); mode = 'tex';
-  } else if (id.startsWith('lxs-asc-')) {
-    encoded = id.slice(8); mode = 'asciimath';
-  } else {
-    // Legacy format lxs-{b64} — assume tex
-    encoded = id.slice(4); mode = 'tex';
-  }
-  const b64    = encoded.replace(/-/g, '+').replace(/_/g, '/');
+function fromB64url(b64url) {
+  const b64    = b64url.replace(/-/g, '+').replace(/_/g, '/');
   const padded = b64 + '=='.slice(0, (4 - b64.length % 4) % 4);
-  const bytes  = Uint8Array.from(atob(padded), c => c.charCodeAt(0));
-  return { formula: new TextDecoder().decode(bytes), mode };
+  return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
 }
 
-// Returns { formula, mode } or null if no metadata found.
+function decodeLatexId(id) {
+  // New format: lxs2-{base64url(JSON)} — carries formula, mode, fontSize, fontFamily, fileName
+  if (id.startsWith('lxs2-')) {
+    const { f, m, s, ff, fn } = JSON.parse(new TextDecoder().decode(fromB64url(id.slice(5))));
+    return {
+      formula:    f,
+      mode:       m  || 'tex',
+      fontSize:   typeof s === 'number' && s > 0 ? s : null,
+      fontFamily: ff || null,
+      fileName:   fn || null,
+    };
+  }
+  // Legacy formats: lxs-tex-{b64}, lxs-asc-{b64}, lxs-{b64}
+  let encoded, mode;
+  if (id.startsWith('lxs-tex-'))      { encoded = id.slice(8); mode = 'tex'; }
+  else if (id.startsWith('lxs-asc-')) { encoded = id.slice(8); mode = 'asciimath'; }
+  else                                 { encoded = id.slice(4); mode = 'tex'; }
+  return {
+    formula:    new TextDecoder().decode(fromB64url(encoded)),
+    mode,
+    fontSize:   null,
+    fontFamily: null,
+    fileName:   null,
+  };
+}
+
+// Returns { formula, mode, fontSize, fontFamily, fileName } or null if no metadata found.
 // mode is 'tex' | 'asciimath', defaults to 'tex' for backwards compatibility.
+// fontSize, fontFamily, fileName are null when absent (older SVGs).
 export function parseSvgForLatex(svgText) {
   const parser = new DOMParser();
   const doc    = parser.parseFromString(svgText, 'image/svg+xml');
   const svgEl  = doc.querySelector('svg');
-  let formula  = null;
-  let mode     = 'tex';
+  let formula    = null;
+  let mode       = 'tex';
+  let fontSize   = null;
+  let fontFamily = null;
+  let fileName   = null;
 
   // Method 1: <latex-source mode="..."> inside <metadata> — current format
   const lsEl = doc.querySelector('latex-source');
@@ -31,16 +51,34 @@ export function parseSvgForLatex(svgText) {
     formula = lsEl.textContent;
     const m = lsEl.getAttribute('mode');
     if (m === 'asciimath') mode = 'asciimath';
+
+    const fs = parseFloat(lsEl.getAttribute('font-size'));
+    if (!isNaN(fs) && fs > 0) fontSize = fs;
+
+    const ff = lsEl.getAttribute('font-family');
+    if (ff) fontFamily = ff;
+
+    const fn = lsEl.getAttribute('file-name');
+    if (fn) fileName = fn;
   }
 
-  // Method 2: id="lxs-{base64url}" — survives Word; mode encoded in prefix since lxs-tex-/lxs-asc-
-  if (!formula && svgEl?.id?.startsWith('lxs-')) {
-    try { ({ formula, mode } = decodeLatexId(svgEl.id)); } catch { /* malformed */ }
+  // Method 2: id attribute — survives Word's <metadata> stripping.
+  // lxs2-{json} carries formula+mode+fontSize+fontFamily+fileName.
+  // Legacy lxs-tex-/lxs-asc- carry formula+mode only.
+  if (!formula && svgEl?.id?.startsWith('lxs')) {
+    try {
+      const d  = decodeLatexId(svgEl.id);
+      formula    = d.formula;
+      mode       = d.mode;
+      fontSize   = fontSize   ?? d.fontSize;
+      fontFamily = fontFamily ?? d.fontFamily;
+      fileName   = fileName   ?? d.fileName;
+    } catch { /* malformed */ }
   }
 
   // Method 3: data-latex — backwards compat
   if (!formula && svgEl) formula = svgEl.getAttribute('data-latex');
 
   if (!formula) return null;
-  return { formula: unescapeXml(formula.trim()), mode };
+  return { formula: unescapeXml(formula.trim()), mode, fontSize, fontFamily, fileName };
 }
