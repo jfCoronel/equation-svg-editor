@@ -29,8 +29,8 @@ export default function InstallPrompt() {
   return (
     <div className="install-prompt">
       <span className="ti ti-download" />
-      <span>{t('installApp')}</span>
-      <button onClick={install} className="install-btn">{t('install')}</button>
+      <span>{t.installApp}</span>
+      <button onClick={install} className="install-btn">{t.install}</button>
       <button onClick={() => setVisible(false)} className="install-dismiss" aria-label="Cerrar">
         <span className="ti ti-x" />
       </button>
