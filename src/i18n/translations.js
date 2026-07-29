@@ -22,6 +22,8 @@ export const translations = {
 
     // ActionButtons
     downloadSvg: 'Descargar SVG',
+    equationName: 'Nombre',
+    equationNamePlaceholder: 'Nombre de la ecuación',
     saveAsPrompt: 'Nombre del archivo:',
     fontSize: 'Tamaño',
     fontFace: 'Fuente',
@@ -34,6 +36,8 @@ export const translations = {
     noLatexMeta: 'sin metadatos LaTeX',
     viewSvgContent: 'Ver contenido SVG (diagnóstico)',
     fromSource: 'de',
+    searchPlaceholder: 'Buscar por nombre…',
+    noSearchResults: 'Ninguna ecuación coincide con la búsqueda.',
 
     // DropZone
     dropZoneLabel: 'Arrastra un SVG aquí para recuperar el LaTeX',
@@ -93,6 +97,8 @@ export const translations = {
 
     // ActionButtons
     downloadSvg: 'Download SVG',
+    equationName: 'Name',
+    equationNamePlaceholder: 'Equation name',
     saveAsPrompt: 'File name:',
     fontSize: 'Size',
     fontFace: 'Font',
@@ -105,6 +111,8 @@ export const translations = {
     noLatexMeta: 'no LaTeX metadata',
     viewSvgContent: 'View SVG content (debug)',
     fromSource: 'from',
+    searchPlaceholder: 'Search by name…',
+    noSearchResults: 'No equation matches the search.',
 
     // DropZone
     dropZoneLabel: 'Drag an SVG here to recover the LaTeX',

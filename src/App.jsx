@@ -24,6 +24,7 @@ export default function App() {
   const [svgPicker,        setSvgPicker]       = useState([]);
   const [fontSize,         setFontSize]        = useState(12);
   const [inputMode,        setInputMode]       = useState('tex');
+  const [equationName,     setEquationName]    = useState('');
 
   const [dark, setDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -45,6 +46,8 @@ export default function App() {
   const handleDownloadRef  = useRef(null);
   const isDownloadingRef   = useRef(false);
   const loadedFilenameRef  = useRef(null);
+  const equationNameRef    = useRef('');
+  const lastSvgElRef       = useRef(null);
 
   useEffect(() => { fontRef.current = font; }, [font]);
 
@@ -90,8 +93,9 @@ export default function App() {
       const svgEl = container.querySelector('svg');
       if (!svgEl) throw new Error(t.noSvgGenerated);
 
+      lastSvgElRef.current = svgEl;
       setCurrentLatex(trimmed);
-      setCurrentSvgString(buildExportSvg(svgEl, trimmed, pt, inputModeRef.current, fontRef.current));
+      setCurrentSvgString(buildExportSvg(svgEl, trimmed, pt, inputModeRef.current, fontRef.current, equationNameRef.current));
 
       const preview = svgEl.cloneNode(true);
       applyPtDimensions(preview, pt);
@@ -116,7 +120,7 @@ export default function App() {
       const saved = localStorage.getItem('mj-restore');
       if (saved) {
         try {
-          const { formula, mode, fontSize: savedFontSize } = JSON.parse(saved);
+          const { formula, mode, fontSize: savedFontSize, name: savedName } = JSON.parse(saved);
           localStorage.removeItem('mj-restore');
           if (mode && mode !== 'tex') {
             inputModeRef.current = mode;
@@ -125,6 +129,10 @@ export default function App() {
           if (savedFontSize && savedFontSize > 0) {
             fontSizeRef.current = savedFontSize;
             setFontSize(savedFontSize);
+          }
+          if (savedName) {
+            equationNameRef.current = savedName;
+            setEquationName(savedName);
           }
           src = formula;
         } catch { /* ignore */ }
@@ -141,6 +149,7 @@ export default function App() {
         formula: latexInputRef.current,
         mode: inputModeRef.current,
         fontSize: fontSizeRef.current,
+        name: equationNameRef.current,
       }));
     }
     localStorage.setItem('mj-font', newFont);
@@ -154,6 +163,16 @@ export default function App() {
     if (latexInputRef.current.trim()) renderLatex(latexInputRef.current, pt);
   }, [renderLatex]);
 
+  const handleEquationNameChange = useCallback((name) => {
+    equationNameRef.current = name;
+    setEquationName(name);
+    if (lastSvgElRef.current && currentLatex) {
+      setCurrentSvgString(buildExportSvg(
+        lastSvgElRef.current, currentLatex, fontSizeRef.current, inputModeRef.current, fontRef.current, name
+      ));
+    }
+  }, [currentLatex]);
+
   const handleModeChange = useCallback((mode) => {
     inputModeRef.current = mode;
     setInputMode(mode);
@@ -164,6 +183,8 @@ export default function App() {
     setCurrentSvgString('');
     setCurrentLatex('');
     setStatus('');
+    equationNameRef.current = '';
+    setEquationName('');
   }, []);
 
   const handleDownload = useCallback(async () => {
@@ -171,12 +192,17 @@ export default function App() {
     if (!currentSvgString) { setStatus(t.nothingToDownload, 'err'); return; }
     isDownloadingRef.current = true;
 
-    const safeName = currentLatex
+    const safeFromName = equationNameRef.current.trim()
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .substring(0, 40)
+      .replace(/_+$/g, '');
+
+    const safeFromLatex = currentLatex
       .replace(/[^a-zA-Z0-9]/g, '_')
       .substring(0, 30)
       .replace(/_+$/g, '') || t.defaultEquationName;
 
-    const suggestedName = loadedFilenameRef.current ?? `eq_${safeName}.svg`;
+    const suggestedName = loadedFilenameRef.current ?? `eq_${safeFromName || safeFromLatex}.svg`;
 
     // showSaveFilePicker shows a native "Save As" dialog on Chrome/Edge.
     // Safari declares the API but doesn't prompt for a filename, so we skip it there.
@@ -242,9 +268,11 @@ export default function App() {
   const loadSvgContent = useCallback((content, name = 'archivo.svg') => {
     const result = parseSvgForLatex(content);
     if (result) {
-      const { formula, mode, fontSize: svgFontSize, fontFamily: svgFontFamily, fileName } = result;
+      const { formula, mode, fontSize: svgFontSize, fontFamily: svgFontFamily, fileName, name: eqName } = result;
 
       loadedFilenameRef.current = fileName || null;
+      equationNameRef.current   = eqName || '';
+      setEquationName(eqName || '');
 
       // Apply defaults when metadata is absent
       const targetFontSize   = (svgFontSize   != null && svgFontSize > 0) ? svgFontSize   : 12;
@@ -335,7 +363,7 @@ export default function App() {
             reader.onload  = e => {
               const content = e.target.result;
               const parsed  = parseSvgForLatex(content);
-              res([{ name: f.name, displayName: parsed?.fileName ?? null, content, latex: parsed?.formula ?? null }]);
+              res([{ name: f.name, displayName: parsed?.fileName ?? null, eqName: parsed?.name ?? null, content, latex: parsed?.formula ?? null }]);
             };
             reader.onerror = () => rej(new Error(f.name));
             reader.readAsText(f);
@@ -374,6 +402,8 @@ export default function App() {
             inputMode={inputMode}
             onModeChange={handleModeChange}
             dark={dark}
+            equationName={equationName}
+            onEquationNameChange={handleEquationNameChange}
           />
           <Preview
             mjReady={mjReady}

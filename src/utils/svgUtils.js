@@ -26,9 +26,10 @@ function toB64url(str) {
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function encodeMetadataId(formula, mode, fontSize, fontFamily) {
+function encodeMetadataId(formula, mode, fontSize, fontFamily, name) {
   const meta = { f: formula, m: mode, s: fontSize };
   if (fontFamily) meta.ff = fontFamily;
+  if (name)       meta.n  = name;
   return 'lxs2-' + toB64url(JSON.stringify(meta));
 }
 
@@ -52,7 +53,7 @@ function applyPtDimensions(svgEl, fontSize) {
   svgEl.setAttribute('height', `${(vbH / 1000 * fontSize).toFixed(3)}pt`);
 }
 
-export function buildExportSvg(svgEl, formula, fontSize = 12, mode = 'tex', fontFamily = '') {
+export function buildExportSvg(svgEl, formula, fontSize = 12, mode = 'tex', fontFamily = '', name = '') {
   const ns    = 'http://www.w3.org/2000/svg';
   const clone = svgEl.cloneNode(true);
 
@@ -61,13 +62,14 @@ export function buildExportSvg(svgEl, formula, fontSize = 12, mode = 'tex', font
   clone.setAttribute('xmlns',       ns);
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   // lxs2- id encodes all metadata in JSON/base64url — survives Word's <metadata> stripping
-  clone.setAttribute('id', encodeMetadataId(formula, mode, fontSize, fontFamily));
+  clone.setAttribute('id', encodeMetadataId(formula, mode, fontSize, fontFamily, name));
 
   // <metadata> for LibreOffice, Inkscape and other SVG-aware tools
   const fontFamilyAttr = fontFamily ? ` font-family="${escapeXml(fontFamily)}"` : '';
+  const nameAttr       = name       ? ` name="${escapeXml(name)}"`               : '';
   const meta = document.createElementNS(ns, 'metadata');
   meta.innerHTML =
-    `<latex-source xmlns="https://schemas.latexeditor.app/1.0" mode="${mode}" font-size="${fontSize}"${fontFamilyAttr}>` +
+    `<latex-source xmlns="https://schemas.latexeditor.app/1.0" mode="${mode}" font-size="${fontSize}"${fontFamilyAttr}${nameAttr}>` +
     escapeXml(formula) +
     '</latex-source>';
   clone.insertBefore(meta, clone.firstChild);

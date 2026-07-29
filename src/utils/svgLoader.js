@@ -7,15 +7,16 @@ function fromB64url(b64url) {
 }
 
 function decodeLatexId(id) {
-  // New format: lxs2-{base64url(JSON)} — carries formula, mode, fontSize, fontFamily, fileName
+  // New format: lxs2-{base64url(JSON)} — carries formula, mode, fontSize, fontFamily, fileName, name
   if (id.startsWith('lxs2-')) {
-    const { f, m, s, ff, fn } = JSON.parse(new TextDecoder().decode(fromB64url(id.slice(5))));
+    const { f, m, s, ff, fn, n } = JSON.parse(new TextDecoder().decode(fromB64url(id.slice(5))));
     return {
       formula:    f,
       mode:       m  || 'tex',
       fontSize:   typeof s === 'number' && s > 0 ? s : null,
       fontFamily: ff || null,
       fileName:   fn || null,
+      name:       n  || null,
     };
   }
   // Legacy formats: lxs-tex-{b64}, lxs-asc-{b64}, lxs-{b64}
@@ -29,12 +30,13 @@ function decodeLatexId(id) {
     fontSize:   null,
     fontFamily: null,
     fileName:   null,
+    name:       null,
   };
 }
 
-// Returns { formula, mode, fontSize, fontFamily, fileName } or null if no metadata found.
+// Returns { formula, mode, fontSize, fontFamily, fileName, name } or null if no metadata found.
 // mode is 'tex' | 'asciimath', defaults to 'tex' for backwards compatibility.
-// fontSize, fontFamily, fileName are null when absent (older SVGs).
+// fontSize, fontFamily, fileName, name are null when absent (older SVGs).
 export function parseSvgForLatex(svgText) {
   const parser = new DOMParser();
   const doc    = parser.parseFromString(svgText, 'image/svg+xml');
@@ -44,6 +46,7 @@ export function parseSvgForLatex(svgText) {
   let fontSize   = null;
   let fontFamily = null;
   let fileName   = null;
+  let name       = null;
 
   // Method 1: <latex-source mode="..."> inside <metadata> — current format
   const lsEl = doc.querySelector('latex-source');
@@ -60,10 +63,13 @@ export function parseSvgForLatex(svgText) {
 
     const fn = lsEl.getAttribute('file-name');
     if (fn) fileName = fn;
+
+    const n = lsEl.getAttribute('name');
+    if (n) name = n;
   }
 
   // Method 2: id attribute — survives Word's <metadata> stripping.
-  // lxs2-{json} carries formula+mode+fontSize+fontFamily+fileName.
+  // lxs2-{json} carries formula+mode+fontSize+fontFamily+fileName+name.
   // Legacy lxs-tex-/lxs-asc- carry formula+mode only.
   if (!formula && svgEl?.id?.startsWith('lxs')) {
     try {
@@ -73,6 +79,7 @@ export function parseSvgForLatex(svgText) {
       fontSize   = fontSize   ?? d.fontSize;
       fontFamily = fontFamily ?? d.fontFamily;
       fileName   = fileName   ?? d.fileName;
+      name       = name       ?? d.name;
     } catch { /* malformed */ }
   }
 
@@ -80,5 +87,5 @@ export function parseSvgForLatex(svgText) {
   if (!formula && svgEl) formula = svgEl.getAttribute('data-latex');
 
   if (!formula) return null;
-  return { formula: unescapeXml(formula.trim()), mode, fontSize, fontFamily, fileName };
+  return { formula: unescapeXml(formula.trim()), mode, fontSize, fontFamily, fileName, name };
 }

@@ -28,6 +28,7 @@ export async function extractSvgsFromDoc(file) {
       results.push({
         name:        path.split('/').pop(),
         displayName: parsed?.fileName ?? null,
+        eqName:      parsed?.name ?? null,
         sourceName:  file.name,
         content,
         latex:       parsed?.formula ?? null,

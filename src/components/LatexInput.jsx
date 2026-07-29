@@ -18,7 +18,7 @@ const bracketStyle = { tag: t.bracket, color: '#CB4B16', fontWeight: '600' };
 const themeDark  = solarizedDarkInit ({ styles: [bracketStyle] });
 const themeLight = solarizedLightInit({ styles: [bracketStyle] });
 
-export function LatexInput({ value, onChange, onRender, inputMode, onModeChange, dark }) {
+export function LatexInput({ value, onChange, onRender, inputMode, onModeChange, dark, equationName, onEquationNameChange }) {
   const { t, lang } = useLanguage();
   const debounceRef = useRef(null);
   const onRenderRef = useRef(onRender);
@@ -58,10 +58,11 @@ export function LatexInput({ value, onChange, onRender, inputMode, onModeChange,
   const examples = inputMode === 'asciimath' ? ASCII_EXAMPLES : EXAMPLES;
   const placeholder = inputMode === 'asciimath' ? t.placeholderAsciimath : t.placeholderLatex;
 
-  function handleExample(src) {
+  function handleExample(src, label) {
     onChange(src);
     clearTimeout(debounceRef.current);
     onRenderRef.current(src);
+    if (label) onEquationNameChange(label);
   }
 
   return (
@@ -78,6 +79,16 @@ export function LatexInput({ value, onChange, onRender, inputMode, onModeChange,
             onClick={() => { onModeChange('asciimath'); focusEditor(); }}
           >ASCIIMath</button>
         </div>
+        <label className="eq-name-control">
+          <span>{t.equationName}</span>
+          <input
+            type="text"
+            className="eq-name-input"
+            value={equationName}
+            onChange={e => onEquationNameChange(e.target.value)}
+            placeholder={t.equationNamePlaceholder}
+          />
+        </label>
         <button
           className="clear-btn"
           title={t.clearContent}
@@ -94,7 +105,10 @@ export function LatexInput({ value, onChange, onRender, inputMode, onModeChange,
         <select
           className="ex-select"
           value=""
-          onChange={e => { if (e.target.value) handleExample(e.target.value); }}
+          onChange={e => {
+            const ex = examples.find(ex => ex.src === e.target.value);
+            if (ex) handleExample(ex.src, ex.label);
+          }}
         >
           <option value="" disabled>{t.examplesPlaceholder}</option>
           {examples.map(ex => (

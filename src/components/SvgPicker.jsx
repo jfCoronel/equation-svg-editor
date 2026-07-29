@@ -19,7 +19,7 @@ function PickerItem({ svg, onSelect }) {
         </div>
         <div className="svg-picker-meta">
           <span className="svg-picker-name">
-            {svg.displayName ?? svg.name}
+            {svg.eqName ?? svg.displayName ?? svg.name}
             {svg.sourceName && <span className="svg-picker-source"> {t.fromSource} {svg.sourceName}</span>}
           </span>
           {svg.latex
@@ -46,18 +46,36 @@ function PickerItem({ svg, onSelect }) {
 
 export function SvgPicker({ items, onSelect, onClose }) {
   const { t } = useLanguage();
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(svg => (svg.eqName ?? svg.displayName ?? svg.name ?? '').toLowerCase().includes(q));
+  }, [items, query]);
+
   return (
     <div className="svg-picker">
       <div className="svg-picker-header">
         <span>{t.selectEquation}</span>
+        <input
+          type="text"
+          className="svg-picker-search"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={t.searchPlaceholder}
+        />
         <button className="svg-picker-close" onClick={onClose} aria-label={t.close}>
           <i className="ti ti-x" aria-hidden="true" />
         </button>
       </div>
       <div className="svg-picker-list">
-        {items.map((svg, i) => (
+        {filtered.map((svg, i) => (
           <PickerItem key={i} svg={svg} onSelect={onSelect} />
         ))}
+        {filtered.length === 0 && (
+          <div className="svg-picker-empty">{t.noSearchResults}</div>
+        )}
       </div>
     </div>
   );
